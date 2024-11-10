@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Github Pull Request Statistics</title>
+
+<style>
+	.uplot, .uplot *, .uplot *::before, .uplot *::after {box-sizing: border-box;}.uplot {font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";line-height: 1.5;width: max-content;}.u-title {text-align: center;font-size: 18px;font-weight: bold;}.u-wrap {position: relative;user-select: none;}.u-over, .u-under {position: absolute;}.u-under {overflow: hidden;}.uplot canvas {display: block;position: relative;width: 100%;height: 100%;}.u-legend {font-size: 14px;margin: auto;text-align: center;}.u-inline {display: block;}.u-inline * {display: inline-block;}.u-inline tr {margin-right: 16px;}.u-legend th {font-weight: 600;}.u-legend th > * {vertical-align: middle;display: inline-block;}.u-legend .u-marker {width: 1em;height: 1em;margin-right: 4px;border: 2px solid transparent;}.u-series:first-child .u-marker {display: none;}.u-inline.u-live th::after {content: ":";vertical-align: middle;}.u-inline:not(.u-live) .u-value {display: none;}.u-series > * {padding: 4px;}.u-series th {cursor: pointer;}.u-legend .u-off > * {opacity: 0.3;}.u-select {background: rgba(0,0,0,0.07);position: absolute;pointer-events: none;}.u-cursor-x, .u-cursor-y {position: absolute;left: 0;top: 0;pointer-events: none;will-change: transform;z-index: 100;}.u-cursor-x {height: 100%;border-right: 1px dashed #607D8B;}.u-cursor-y {width: 100%;border-bottom: 1px dashed #607D8B;}.u-cursor-pt {position: absolute;top: 0;left: 0;border-radius: 50%;filter: brightness(85%);pointer-events: none;will-change: transform;z-index: 100;}.u-select.u-off, .u-cursor-x.u-off, .u-cursor-y.u-off, .u-cursor-pt.u-off {display: none;}
+
+	h1 {
+		text-align: center;
+	}
+	#plot, .uplot {
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.monospace {
+		font-family: monospace;
+	}
+	.u-title {
+		filter: drop-shadow(0 0 1px gold);
+	}
+	.u-legend {
+		text-align: start !important;
+	}
+	.u-value {
+		min-width: 6em;
+	}
+	.visible {
+		display: table;
+	}
+	.invisible {
+		display: none;
+	}
+	tr {
+		transition: 0.17s filter linear;
+	}
+
+	tr.loaded {
+		filter: drop-shadow(1px 1px 1px green);
+	}
+	@media (min-width: 1200px) { #chart1 {
+		display: flex;
+	}}
+</style>
+
+<h1>Github Pull Request Statistics</h1>
+
+
+<div id="plot"></div>
+
+<script src="papaparse.js"></script>
+<script src="uPlot.iife.min.js"></script>
+<script src="stack.js"></script>
+
+<script>
+"use strict";
+// time series data
+var data = [];
+// uPlot size extension control
+var extended = true;
+function extendUplot() {
+	if (extended) {
+		return;
+	}
+	extended = true;
+	const overlay = document.querySelector(".u-over");
+	const width = Number(overlay.style.width.substr(0, overlay.style.width.length-2));
+	overlay.style.width = (width + 40) + "px";
+}
+
+const lineInterpolations = {
+	linear:     0,
+	smooth:     1,
+	stepAfter:  2,
+	stepBefore: 3,
+};
+const drawStyles = {
+	line:     0,
+	bars:     1,
+	points:   2,
+};
+// generate bar builder with 60% bar (40% gap) & 100px max bar width
+const _bars60_100 = uPlot.paths.bars({size: [0.6, 100]});
+const _stepBefore = uPlot.paths.stepped({align: -1});
+const _stepAfter  = uPlot.paths.stepped({align:  1});
+const _spline     = uPlot.paths.spline();
+const _linear     = uPlot.paths.linear();
+function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
+	let s = u.series[seriesIdx];
+	let style = s.drawStyle;
+	let interp = s.lineInterpolation;
+	let renderer = (
+		style == drawStyles.line ? (
+			interp == lineInterpolations.linear     ? _linear :
+			interp == lineInterpolations.smooth     ? _spline :
+			interp == lineInterpolations.stepAfter  ? _stepAfter :
+			interp == lineInterpolations.stepBefore ? _stepBefore :
+			null
+		) :
+		style == drawStyles.bars ? (
+			_bars60_100
+		) :
+		style == drawStyles.points ? (
+			() => null
+		) : () => null
+	);
+	return renderer(u, seriesIdx, idx0, idx1, extendGap, buildClip);
+}
+function processCSV() {
+	let x = [];
+	let ys = [[],[],[]];
+	let names = ["open", "merged", "closed"];
+	let colors = [0x00ff00, 0x8250df, 0xff0000];
+
+	for (let i = 0; i < data.length; i++) {
+		x.push(data[i][0]);
+		ys[0].push(data[i][1]);
+		ys[1].push(data[i][2]);
+		ys[2].push(data[i][3]);
+	}
+	let index = 0;
+	let seriesData = ys.map(idx => {
+		index++;
+		const color = colors[index-1];
+		let r = color >> 16 & 255;
+		let g = color >> 8 & 255;
+		let b = color & 255;
+		return {
+			label: names[index-1],
+			class: "monospace",
+			//width: 2,
+			stroke: `rgb(${r},${g},${b})`,
+			fill: `rgba(${r},${g},${b},0.4)`,
+			//drawStyle: drawStyles.line, // line
+			lineInterpolation: lineInterpolations.stepAfter,
+			spanGaps: true
+		};
+	});
+	let plotData = [x, ...ys];
+	let series = [
+		{
+			label: "t",
+			value: "{YYYY}-{MM}-{DD} {HH}:{mm}",
+			class: "monospace"
+		},
+		...seriesData
+	];
+	console.log(plotData);
+	console.log(series);
+	let r = getStackedOpts("PR stats", series, plotData, null);
+	let opts = r.opts;
+	let realPlotData = r.data;
+	opts.axes = [
+		{
+			labelSize: 20,
+			values: [[3600 * 24, "{YYYY}-{M}-{D}\n{H}:{mm}", null, null ]]
+		},
+		{
+			space: 50,
+			side: 1,
+			label: "PRs",
+		}
+	];
+	opts.width = document.body.clientWidth - 100;
+	opts.height = 600;
+	console.log(opts);
+	console.log(realPlotData);
+	document.getElementById("plot").innerText = "";
+	let uplot = new uPlot(opts, realPlotData, document.getElementById("plot"));
+	/*
+	let opts = {
+		title: "PR stats",
+		id: "chart1",
+		width: 800,
+		height: 600,
+		scales: {
+			x: {
+				time: true,
+			},
+			open: {
+				auto: true,
+			},
+			merged: {
+				auto: true,
+			},
+			closed: {
+				auto: true,
+			},
+		},
+		series: ,
+		cursor: {
+			dataIdx: (self, seriesIdx, hoveredIdx) => {
+				// find next one on the left (adapted from uplot demo)
+				let seriesData = self.data[seriesIdx];
+
+				if (seriesData[hoveredIdx] == null) {
+					let nonNullLft = hoveredIdx;
+					let i = hoveredIdx;
+
+					while (nonNullLft == hoveredIdx && i-- > 0)
+						if (seriesData[i] != null)
+							nonNullLft = i;
+
+					return nonNullLft;
+				}
+
+				return hoveredIdx;
+			}
+		},
+		axes: [
+			{
+				labelSize: 20,
+				values: [[3600 * 24, "{D}.{M}.\n{H}:{mm}", null, null ]]
+			},
+			{
+				space: 50,
+				side: 1,
+				label: "PRs",
+			}
+		],
+	};
+	*/
+	// uplot.setCursor({left: 10000, top: 0}); // show latest values instantly
+	// uplot.cursor.lock = true;
+	let legendEl = document.querySelector(".u-legend");
+	legendEl.classList.remove("u-inline");
+	//extended = false;
+	//setTimeout(extendUplot, 200);
+}
+
+Papa.parse(`./data/NixOS/nixpkgs.csv`, {
+	delimiter: ",",
+	header: true,
+	download: true,
+	step: function(row) {
+		if (row.errors.length > 0) {
+			return;
+		}
+		data.push([Number(row.data["timestamp"]),Number(row.data["open"]),Number(row.data["merged"]),Number(row.data["closed"])]);
+	},
+	complete: processCSV,
+});
+
+function hashCode(s) {
+	var hash = 0;
+	for (var i = 0; i < s.length; i++) {
+		var character = s.charCodeAt(i);
+		hash = ((hash<<5)-hash)+character;
+		hash = hash & hash;
+	}
+	return hash;
+}
+
+// https://github.com/davidbau/xsrand/blob/master/xor128.js
+function XorGen(seed) {
+	var me = { x: 0, y: 0, z: 0, w: 0 };
+
+	// Set up generator function.
+	me.next = function() {
+		var t = me.x ^ (me.x << 11);
+		me.x = me.y;
+		me.y = me.z;
+		me.z = me.w;
+		return me.w ^= (me.w >> 19) ^ t ^ (t >> 8);
+	};
+	me.nextN = function(iter) {
+		for (let k = 0; k < iter; k++) { me.next(); }
+		return me.next();
+	};
+
+	function init(me, seed) {
+		me.x = seed;
+		me.y = 0;
+		me.z = 0;
+		me.w = 0;
+		// Discard an initial batch of 64 values.
+		for (var k = 64; k > 0; --k) {
+			me.next();
+		}
+	}
+
+	init(me, seed);
+	return me;
+}
+
+</script>
+
+</html>

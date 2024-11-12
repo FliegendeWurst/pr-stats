@@ -50,6 +50,7 @@
 
 
 <div id="plot"></div>
+<div id="plot2"></div>
 
 <script src="papaparse.js"></script>
 <script src="uPlot.iife.min.js"></script>
@@ -59,6 +60,7 @@
 "use strict";
 // time series data
 var data = [];
+var dataMonthly = [];
 // uPlot size extension control
 var extended = true;
 function extendUplot() {
@@ -109,17 +111,18 @@ function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	);
 	return renderer(u, seriesIdx, idx0, idx1, extendGap, buildClip);
 }
-function processCSV() {
+function processCSV(monthly) {
 	let x = [];
 	let ys = [[],[],[]];
 	let names = ["open", "merged", "closed"];
 	let colors = [0x00ff00, 0x8250df, 0xff0000];
 
-	for (let i = 0; i < data.length; i++) {
-		x.push(data[i][0]);
-		ys[0].push(data[i][1]);
-		ys[1].push(data[i][2]);
-		ys[2].push(data[i][3]);
+	let ourData = monthly ? dataMonthly : data;
+	for (let i = 0; i < ourData.length; i++) {
+		x.push(ourData[i][0]);
+		ys[0].push(ourData[i][1]);
+		ys[1].push(ourData[i][2]);
+		ys[2].push(ourData[i][3]);
 	}
 	let index = 0;
 	let seriesData = ys.map(idx => {
@@ -148,15 +151,13 @@ function processCSV() {
 		},
 		...seriesData
 	];
-	console.log(plotData);
-	console.log(series);
 	let r = getStackedOpts("PR stats", series, plotData, null);
 	let opts = r.opts;
 	let realPlotData = r.data;
 	opts.axes = [
 		{
 			labelSize: 20,
-			values: [[3600 * 24, "{YYYY}-{M}-{D}\n{H}:{mm}", null, null ]]
+			values: [[3600 * 24, "{YYYY}-{M}-{D}\n{H}:{mm}", null, null]]
 		},
 		{
 			space: 50,
@@ -164,71 +165,25 @@ function processCSV() {
 			label: "PRs",
 		}
 	];
+	opts.scales = {
+		"x": {
+			time: true,
+		},
+		"y": {
+			auto: true,
+		},
+	};
+	if (monthly) {
+		opts.scales.y.auto = false;
+		opts.scales.y.range = [0, 1];
+	}
 	opts.width = document.body.clientWidth - 100;
 	opts.height = 600;
-	console.log(opts);
-	console.log(realPlotData);
-	document.getElementById("plot").innerText = "";
-	let uplot = new uPlot(opts, realPlotData, document.getElementById("plot"));
-	/*
-	let opts = {
-		title: "PR stats",
-		id: "chart1",
-		width: 800,
-		height: 600,
-		scales: {
-			x: {
-				time: true,
-			},
-			open: {
-				auto: true,
-			},
-			merged: {
-				auto: true,
-			},
-			closed: {
-				auto: true,
-			},
-		},
-		series: ,
-		cursor: {
-			dataIdx: (self, seriesIdx, hoveredIdx) => {
-				// find next one on the left (adapted from uplot demo)
-				let seriesData = self.data[seriesIdx];
-
-				if (seriesData[hoveredIdx] == null) {
-					let nonNullLft = hoveredIdx;
-					let i = hoveredIdx;
-
-					while (nonNullLft == hoveredIdx && i-- > 0)
-						if (seriesData[i] != null)
-							nonNullLft = i;
-
-					return nonNullLft;
-				}
-
-				return hoveredIdx;
-			}
-		},
-		axes: [
-			{
-				labelSize: 20,
-				values: [[3600 * 24, "{D}.{M}.\n{H}:{mm}", null, null ]]
-			},
-			{
-				space: 50,
-				side: 1,
-				label: "PRs",
-			}
-		],
-	};
-	*/
-	// uplot.setCursor({left: 10000, top: 0}); // show latest values instantly
-	// uplot.cursor.lock = true;
+	let plot = document.getElementById(monthly ? "plot2" : "plot");
+	plot.innerText = "";
+	let uplot = new uPlot(opts, realPlotData, plot);
 	let legendEl = document.querySelector(".u-legend");
 	legendEl.classList.remove("u-inline");
-	//extended = false;
-	//setTimeout(extendUplot, 200);
 }
 
 Papa.parse(`./data/NixOS/nixpkgs.csv`, {
@@ -241,7 +196,20 @@ Papa.parse(`./data/NixOS/nixpkgs.csv`, {
 		}
 		data.push([Number(row.data["timestamp"]),Number(row.data["open"]),Number(row.data["merged"]),Number(row.data["closed"])]);
 	},
-	complete: processCSV,
+	complete: () => processCSV(false),
+});
+
+Papa.parse(`./data_monthly/NixOS/nixpkgs.csv`, {
+	delimiter: ",",
+	header: true,
+	download: true,
+	step: function(row) {
+		if (row.errors.length > 0) {
+			return;
+		}
+		dataMonthly.push([Number(row.data["timestamp"]),Number(row.data["open"]),Number(row.data["merged"]),Number(row.data["closed"])]);
+	},
+	complete: () => processCSV(true),
 });
 
 function hashCode(s) {

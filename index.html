@@ -280,7 +280,6 @@ function processCSV(thing) {
 	legendEl.classList.remove("u-inline");
 }
 
-/*
 Papa.parse(`./data/NixOS/nixpkgs.csv`, {
 	delimiter: ",",
 	header: true,
@@ -306,7 +305,6 @@ Papa.parse(`./data_monthly/NixOS/nixpkgs.csv`, {
 	},
 	complete: () => processCSV("monthly"),
 });
-*/
 
 Papa.parse(`./data_monthly_merged/NixOS/nixpkgs.csv`, {
 	delimiter: ",",

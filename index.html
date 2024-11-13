@@ -34,16 +34,12 @@
 	.invisible {
 		display: none;
 	}
-	tr {
-		transition: 0.17s filter linear;
-	}
-
-	tr.loaded {
-		filter: drop-shadow(1px 1px 1px green);
-	}
 	@media (min-width: 1200px) { #chart1 {
 		display: flex;
 	}}
+	td {
+		border: 1px solid black;
+	}
 </style>
 
 <h1>Github Pull Request Statistics</h1>
@@ -51,6 +47,8 @@
 
 <div id="plot"></div>
 <div id="plot2"></div>
+<div id="plot3"></div>
+<div id="table1"></div>
 
 <script src="papaparse.js"></script>
 <script src="uPlot.iife.min.js"></script>
@@ -61,6 +59,7 @@
 // time series data
 var data = [];
 var dataMonthly = [];
+var dataMonthlyMerged = [];
 // uPlot size extension control
 var extended = true;
 function extendUplot() {
@@ -111,18 +110,85 @@ function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
 	);
 	return renderer(u, seriesIdx, idx0, idx1, extendGap, buildClip);
 }
-function processCSV(monthly) {
+function processCSV(thing) {
+	let year_len = 365.25 * 24 * 60 * 60;
+
 	let x = [];
-	let ys = [[],[],[]];
+	let ys = {
+		"data": [[],[],[]],
+		"monthly": [[],[],[]],
+		"monthly_merged": [[]],
+	}[thing];
+	let years = {};
 	let names = ["open", "merged", "closed"];
 	let colors = [0x00ff00, 0x8250df, 0xff0000];
 
-	let ourData = monthly ? dataMonthly : data;
+	let ourData = {
+		"data": data,
+		"monthly": dataMonthly,
+		"monthly_merged": dataMonthlyMerged
+	}[thing];
 	for (let i = 0; i < ourData.length; i++) {
 		x.push(ourData[i][0]);
-		ys[0].push(ourData[i][1]);
-		ys[1].push(ourData[i][2]);
-		ys[2].push(ourData[i][3]);
+		for (let j = 0; j < ys.length; j++) {
+			ys[j].push(ourData[i][j+1]);
+		}
+	}
+	if (thing === "monthly_merged") {
+		let year = 2012;
+		years[year] = {};
+		let year_date = new Date("" + year);
+		for (let i = 0; i < ys[0].length; i++) {
+			if (ys[0][i+1] > ys[0][i]) {
+				year++;
+				years[year] = {};
+				year_date = new Date("" + year);
+				continue;
+			}
+			let dt = new Date(x[i] * 1000);
+			let time_in_year = (dt - year_date) / 1000 / year_len;
+			if (dt.getFullYear() != year) {
+				continue;
+			}
+			if (time_in_year > 0.02 && years[year]["98%"] === undefined) {
+				years[year]["98%"] = ys[0][i];
+			}
+			if (time_in_year > 0.05 && years[year]["95%"] === undefined) {
+				years[year]["95%"] = ys[0][i];
+			}
+			if (time_in_year > 0.05 && years[year]["95%"] === undefined) {
+				years[year]["95%"] = ys[0][i];
+			}
+			if (time_in_year > 0.1 && years[year]["90%"] === undefined) {
+				years[year]["90%"] = ys[0][i];
+			}
+			if (time_in_year > 0.25 && years[year]["75%"] === undefined) {
+				years[year]["75%"] = ys[0][i];
+			}
+			if (time_in_year > 0.5 && years[year]["50%"] === undefined) {
+				years[year]["50%"] = ys[0][i];
+			}
+			if (time_in_year > 0.75 && years[year]["25%"] === undefined) {
+				years[year]["25%"] = ys[0][i];
+			}
+		}
+		// generate table
+		let tbl = "<table><thead><td>Year</td><td>25%</td><td>50%</td><td>75%</td><td>90%</td><td>95%</td><td>98%</td></thead>";
+		tbl += "<tbody>";
+		for (let year = 2012;; year++) {
+			if (!years[year]) {
+				break;
+			}
+			tbl += "<tr><td>" + year + "</td>";
+			tbl += "<td>" + years[year]["25%"] + "</td>";
+			tbl += "<td>" + years[year]["50%"] + "</td>";
+			tbl += "<td>" + years[year]["75%"] + "</td>";
+			tbl += "<td>" + years[year]["90%"] + "</td>";
+			tbl += "<td>" + years[year]["95%"] + "</td>";
+			tbl += "<td>" + years[year]["98%"] + "</td>";
+		}
+		tbl += "</tbody></table>";
+		document.getElementById("table1").innerHTML = tbl;
 	}
 	let index = 0;
 	let seriesData = ys.map(idx => {
@@ -131,7 +197,7 @@ function processCSV(monthly) {
 		let r = color >> 16 & 255;
 		let g = color >> 8 & 255;
 		let b = color & 255;
-		return {
+		let conf = {
 			label: names[index-1],
 			class: "monospace",
 			//width: 2,
@@ -141,6 +207,13 @@ function processCSV(monthly) {
 			lineInterpolation: lineInterpolations.stepAfter,
 			spanGaps: true
 		};
+		if (thing === "monthly_merged") {
+			delete conf.fill;
+			delete conf.lineInterpolation;
+			conf.spanGaps = false;
+			conf.paths = null;
+		}
+		return conf;
 	});
 	let plotData = [x, ...ys];
 	let series = [
@@ -151,9 +224,18 @@ function processCSV(monthly) {
 		},
 		...seriesData
 	];
-	let r = getStackedOpts("PR stats", series, plotData, null);
-	let opts = r.opts;
-	let realPlotData = r.data;
+	let opts;
+	let realPlotData;
+	if (thing !== "monthly_merged") {
+		let r = getStackedOpts("PR stats", series, plotData, null);
+		opts = r.opts;
+		realPlotData = r.data;
+	} else {
+		opts = {
+			series
+		};
+		realPlotData = plotData;
+	}
 	opts.axes = [
 		{
 			labelSize: 20,
@@ -165,6 +247,13 @@ function processCSV(monthly) {
 			label: "PRs",
 		}
 	];
+	if (thing === "monthly_merged") {
+		opts.series[0].value = (self, rawValue) => {
+			let year_offset = rawValue % year_len;
+			return 100.0 * (1.0 - year_offset / year_len);
+		};
+		opts.axes[1].label = "days to merge (max. 60)";
+	}
 	opts.scales = {
 		"x": {
 			time: true,
@@ -173,19 +262,25 @@ function processCSV(monthly) {
 			auto: true,
 		},
 	};
-	if (monthly) {
+	if (thing === "monthly") {
 		opts.scales.y.auto = false;
 		opts.scales.y.range = [0, 1];
 	}
 	opts.width = document.body.clientWidth - 100;
 	opts.height = 600;
-	let plot = document.getElementById(monthly ? "plot2" : "plot");
+	let plot = document.getElementById({
+		"data": "plot",
+		"monthly": "plot2",
+		"monthly_merged": "plot3"
+	}[thing]);
 	plot.innerText = "";
+	console.log(opts);
 	let uplot = new uPlot(opts, realPlotData, plot);
 	let legendEl = document.querySelector(".u-legend");
 	legendEl.classList.remove("u-inline");
 }
 
+/*
 Papa.parse(`./data/NixOS/nixpkgs.csv`, {
 	delimiter: ",",
 	header: true,
@@ -196,7 +291,7 @@ Papa.parse(`./data/NixOS/nixpkgs.csv`, {
 		}
 		data.push([Number(row.data["timestamp"]),Number(row.data["open"]),Number(row.data["merged"]),Number(row.data["closed"])]);
 	},
-	complete: () => processCSV(false),
+	complete: () => processCSV("data"),
 });
 
 Papa.parse(`./data_monthly/NixOS/nixpkgs.csv`, {
@@ -209,50 +304,22 @@ Papa.parse(`./data_monthly/NixOS/nixpkgs.csv`, {
 		}
 		dataMonthly.push([Number(row.data["timestamp"]),Number(row.data["open"]),Number(row.data["merged"]),Number(row.data["closed"])]);
 	},
-	complete: () => processCSV(true),
+	complete: () => processCSV("monthly"),
 });
+*/
 
-function hashCode(s) {
-	var hash = 0;
-	for (var i = 0; i < s.length; i++) {
-		var character = s.charCodeAt(i);
-		hash = ((hash<<5)-hash)+character;
-		hash = hash & hash;
-	}
-	return hash;
-}
-
-// https://github.com/davidbau/xsrand/blob/master/xor128.js
-function XorGen(seed) {
-	var me = { x: 0, y: 0, z: 0, w: 0 };
-
-	// Set up generator function.
-	me.next = function() {
-		var t = me.x ^ (me.x << 11);
-		me.x = me.y;
-		me.y = me.z;
-		me.z = me.w;
-		return me.w ^= (me.w >> 19) ^ t ^ (t >> 8);
-	};
-	me.nextN = function(iter) {
-		for (let k = 0; k < iter; k++) { me.next(); }
-		return me.next();
-	};
-
-	function init(me, seed) {
-		me.x = seed;
-		me.y = 0;
-		me.z = 0;
-		me.w = 0;
-		// Discard an initial batch of 64 values.
-		for (var k = 64; k > 0; --k) {
-			me.next();
+Papa.parse(`./data_monthly_merged/NixOS/nixpkgs.csv`, {
+	delimiter: ",",
+	header: true,
+	download: true,
+	step: function(row) {
+		if (row.errors.length > 0) {
+			return;
 		}
-	}
-
-	init(me, seed);
-	return me;
-}
+		dataMonthlyMerged.push([Number(row.data["timestamp"]),Number(row.data["time_to_merge"])]);
+	},
+	complete: () => processCSV("monthly_merged"),
+});
 
 </script>
 

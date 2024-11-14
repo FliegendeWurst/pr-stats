@@ -56,60 +56,24 @@
 
 <script>
 "use strict";
+
+const urlHash = window.location.hash;
+let owner;
+let repo;
+if (urlHash.startsWith('#') && urlHash.length >= 4) {
+	const parts = urlHash.split("/");
+	owner = parts[0].substring(1);
+	repo = parts[1];
+} else {
+	owner = "NixOS";
+	repo = "nixpkgs";
+}
+
 // time series data
 var data = [];
 var dataMonthly = [];
 var dataMonthlyMerged = [];
-// uPlot size extension control
-var extended = true;
-function extendUplot() {
-	if (extended) {
-		return;
-	}
-	extended = true;
-	const overlay = document.querySelector(".u-over");
-	const width = Number(overlay.style.width.substr(0, overlay.style.width.length-2));
-	overlay.style.width = (width + 40) + "px";
-}
 
-const lineInterpolations = {
-	linear:     0,
-	smooth:     1,
-	stepAfter:  2,
-	stepBefore: 3,
-};
-const drawStyles = {
-	line:     0,
-	bars:     1,
-	points:   2,
-};
-// generate bar builder with 60% bar (40% gap) & 100px max bar width
-const _bars60_100 = uPlot.paths.bars({size: [0.6, 100]});
-const _stepBefore = uPlot.paths.stepped({align: -1});
-const _stepAfter  = uPlot.paths.stepped({align:  1});
-const _spline     = uPlot.paths.spline();
-const _linear     = uPlot.paths.linear();
-function paths(u, seriesIdx, idx0, idx1, extendGap, buildClip) {
-	let s = u.series[seriesIdx];
-	let style = s.drawStyle;
-	let interp = s.lineInterpolation;
-	let renderer = (
-		style == drawStyles.line ? (
-			interp == lineInterpolations.linear     ? _linear :
-			interp == lineInterpolations.smooth     ? _spline :
-			interp == lineInterpolations.stepAfter  ? _stepAfter :
-			interp == lineInterpolations.stepBefore ? _stepBefore :
-			null
-		) :
-		style == drawStyles.bars ? (
-			_bars60_100
-		) :
-		style == drawStyles.points ? (
-			() => null
-		) : () => null
-	);
-	return renderer(u, seriesIdx, idx0, idx1, extendGap, buildClip);
-}
 function processCSV(thing) {
 	let year_len = 365.25 * 24 * 60 * 60;
 
@@ -150,6 +114,9 @@ function processCSV(thing) {
 			if (dt.getFullYear() != year) {
 				continue;
 			}
+			if (time_in_year > 0.01 && years[year]["99%"] === undefined) {
+				years[year]["99%"] = ys[0][i];
+			}
 			if (time_in_year > 0.02 && years[year]["98%"] === undefined) {
 				years[year]["98%"] = ys[0][i];
 			}
@@ -173,7 +140,7 @@ function processCSV(thing) {
 			}
 		}
 		// generate table
-		let tbl = "<table><thead><td>Year</td><td>25%</td><td>50%</td><td>75%</td><td>90%</td><td>95%</td><td>98%</td></thead>";
+		let tbl = "<table><thead><td>Year</td><td>25%</td><td>50%</td><td>75%</td><td>90%</td><td>95%</td><td>98%</td><td>99%</td></thead>";
 		tbl += "<tbody>";
 		for (let year = 2012;; year++) {
 			if (!years[year]) {
@@ -186,6 +153,7 @@ function processCSV(thing) {
 			tbl += "<td>" + years[year]["90%"] + "</td>";
 			tbl += "<td>" + years[year]["95%"] + "</td>";
 			tbl += "<td>" + years[year]["98%"] + "</td>";
+			tbl += "<td>" + years[year]["99%"] + "</td>";
 		}
 		tbl += "</tbody></table>";
 		document.getElementById("table1").innerHTML = tbl;
@@ -200,16 +168,12 @@ function processCSV(thing) {
 		let conf = {
 			label: names[index-1],
 			class: "monospace",
-			//width: 2,
 			stroke: `rgb(${r},${g},${b})`,
 			fill: `rgba(${r},${g},${b},0.4)`,
-			//drawStyle: drawStyles.line, // line
-			lineInterpolation: lineInterpolations.stepAfter,
 			spanGaps: true
 		};
 		if (thing === "monthly_merged") {
 			delete conf.fill;
-			delete conf.lineInterpolation;
 			conf.spanGaps = false;
 			conf.paths = null;
 		}
@@ -280,7 +244,7 @@ function processCSV(thing) {
 	legendEl.classList.remove("u-inline");
 }
 
-Papa.parse(`./data/NixOS/nixpkgs.csv`, {
+Papa.parse(`./data/${owner}/${repo}.csv`, {
 	delimiter: ",",
 	header: true,
 	download: true,
@@ -293,7 +257,7 @@ Papa.parse(`./data/NixOS/nixpkgs.csv`, {
 	complete: () => processCSV("data"),
 });
 
-Papa.parse(`./data_monthly/NixOS/nixpkgs.csv`, {
+Papa.parse(`./data_monthly/${owner}/${repo}.csv`, {
 	delimiter: ",",
 	header: true,
 	download: true,
@@ -306,7 +270,7 @@ Papa.parse(`./data_monthly/NixOS/nixpkgs.csv`, {
 	complete: () => processCSV("monthly"),
 });
 
-Papa.parse(`./data_monthly_merged/NixOS/nixpkgs.csv`, {
+Papa.parse(`./data_monthly_merged/${owner}/${repo}.csv`, {
 	delimiter: ",",
 	header: true,
 	download: true,

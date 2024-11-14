@@ -1,3 +1,5 @@
+use std::env;
+
 use chrono::{Months, NaiveDateTime, TimeDelta};
 use itertools::Itertools;
 use pr_stats::{get_database, get_repo, TIME_FORMAT};
@@ -7,8 +9,9 @@ fn main() {
 	let mut db = get_database();
 	let tx = db.transaction().unwrap();
 
-	let owner = "NixOS";
-	let repo = "nixpkgs";
+	let args = env::args().collect::<Vec<_>>();
+	let owner = &args[1];
+	let repo = &args[2];
 
 	let repo_id = get_repo(&tx, owner, repo);
 

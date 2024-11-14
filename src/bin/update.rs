@@ -6,10 +6,11 @@ use rusqlite::params;
 
 #[tokio::main]
 async fn main() {
-	real_main().await.unwrap();
+	let args = env::args().collect::<Vec<_>>();
+	real_main(&args).await.unwrap();
 }
 
-async fn real_main() -> Result<(), Box<dyn Error>> {
+async fn real_main(args: &[String]) -> Result<(), Box<dyn Error>> {
 	let gh = octocrab::OctocrabBuilder::default()
 		.personal_token(env::var("GITHUB_PAT").expect("no GITHUB_PAT configured"))
 		.build()?;
@@ -17,8 +18,8 @@ async fn real_main() -> Result<(), Box<dyn Error>> {
 	let mut database = get_database();
 	let tx = database.transaction()?;
 
-	let owner = "NixOS";
-	let repo = "nixpkgs";
+	let owner = &args[1];
+	let repo = &args[2];
 
 	// get repo
 	let repo_id = get_repo(&tx, owner, repo);

@@ -1,3 +1,5 @@
+use std::env;
+
 use chrono::NaiveDateTime;
 use pr_stats::{get_database, get_repo, TIME_FORMAT};
 use rusqlite::params;
@@ -14,8 +16,9 @@ fn main() {
 	let mut db = get_database();
 	let tx = db.transaction().unwrap();
 
-	let owner = "NixOS";
-	let repo = "nixpkgs";
+    let args = env::args().collect::<Vec<_>>();
+	let owner = &args[1];
+	let repo = &args[2];
 
 	let repo_id = get_repo(&tx, owner, repo);
 	let mut stmt = tx.prepare("SELECT * FROM pulls,repos WHERE repo_id = ?1").unwrap();

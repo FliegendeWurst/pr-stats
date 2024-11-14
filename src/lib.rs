@@ -11,13 +11,23 @@ pub fn get_database() -> Connection {
 		.execute(
 			"
 		CREATE TABLE IF NOT EXISTS pulls(
-            owner STRING NOT NULL,
-            repo STRING NOT NULL,
+            repo_id INTEGER NOT NULL,
 			id INTEGER NOT NULL,
             created STRING NOT NULL,
             closed STRING,
             merged INTEGER NOT NULL,
-            PRIMARY KEY (owner, repo, id)
+            PRIMARY KEY (repo_id, id)
+		)",
+			[],
+		)
+		.unwrap();
+	database
+		.execute(
+			"
+		CREATE TABLE IF NOT EXISTS repos(
+			id INTEGER PRIMARY KEY,
+            owner STRING NOT NULL,
+            repo STRING NOT NULL
 		)",
 			[],
 		)

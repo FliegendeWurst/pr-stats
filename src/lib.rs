@@ -1,6 +1,6 @@
 use std::env;
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection, Transaction};
 
 pub static TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
@@ -33,4 +33,17 @@ pub fn get_database() -> Connection {
 		)
 		.unwrap();
 	database
+}
+
+pub fn get_repo(db: &Transaction, owner: &str, repo: &str) -> u64 {
+	if let Ok(id) = db.query_row(
+		"SELECT id FROM repos WHERE owner = ?1 AND repo = ?2",
+		params![owner, repo],
+		|row| Ok(row.get::<_, u64>(0)?),
+	) {
+		return id;
+	}
+	db.execute("INSERT INTO repos (owner, repo) VALUES (?1, ?2)", params![owner, repo])
+		.unwrap();
+	get_repo(db, owner, repo)
 }

@@ -99,7 +99,8 @@ function processCSV(thing) {
 		}
 	}
 	if (thing === "monthly_merged") {
-		let year = 2012;
+		let year = new Date(x[0] * 1000).getFullYear();
+		const firstYear = year;
 		years[year] = {};
 		let year_date = new Date("" + year);
 		for (let i = 0; i < ys[0].length; i++) {
@@ -142,10 +143,7 @@ function processCSV(thing) {
 		// generate table
 		let tbl = "<table><thead><td>Year</td><td>25%</td><td>50%</td><td>75%</td><td>90%</td><td>95%</td><td>98%</td><td>99%</td></thead>";
 		tbl += "<tbody>";
-		for (let year = 2012;; year++) {
-			if (!years[year]) {
-				break;
-			}
+		for (let year = firstYear; years[year]; year++) {
 			tbl += "<tr><td>" + year + "</td>";
 			tbl += "<td>" + years[year]["25%"] + "</td>";
 			tbl += "<td>" + years[year]["50%"] + "</td>";

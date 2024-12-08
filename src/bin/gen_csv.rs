@@ -21,17 +21,17 @@ fn main() {
 	let repo = &args[2];
 
 	let repo_id = get_repo(&tx, owner, repo);
-	let mut stmt = tx.prepare("SELECT * FROM pulls,repos WHERE repo_id = ?1").unwrap();
+	let mut stmt = tx.prepare("SELECT id, created, closed, merged FROM pulls WHERE repo_id = ?1").unwrap();
 
 	let rows = stmt
 		.query_map(params![repo_id], |row| {
 			Ok((
 				owner,
 				repo,
-				row.get::<_, u64>(1).unwrap(),
-				row.get::<_, String>(2).unwrap(),
-				row.get::<_, Option<String>>(3).unwrap(),
-				row.get::<_, u64>(4).unwrap(),
+				row.get::<_, u64>(0).unwrap(),
+				row.get::<_, String>(1).unwrap(),
+				row.get::<_, Option<String>>(2).unwrap(),
+				row.get::<_, u64>(3).unwrap(),
 			))
 		})
 		.unwrap()

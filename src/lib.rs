@@ -16,6 +16,7 @@ pub fn get_database() -> Connection {
             created STRING NOT NULL,
             closed STRING,
             merged INTEGER NOT NULL,
+			merger_id INTEGER,
             PRIMARY KEY (repo_id, id)
 		)",
 			[],
@@ -29,6 +30,16 @@ pub fn get_database() -> Connection {
             owner STRING NOT NULL,
             repo STRING NOT NULL
 		)",
+			[],
+		)
+		.unwrap();
+	database
+		.execute(
+			"
+		CREATE TABLE IF NOT EXISTS users(
+			id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL
+		) STRICT",
 			[],
 		)
 		.unwrap();

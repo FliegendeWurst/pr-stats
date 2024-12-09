@@ -16,12 +16,14 @@ fn main() {
 	let mut db = get_database();
 	let tx = db.transaction().unwrap();
 
-    let args = env::args().collect::<Vec<_>>();
+	let args = env::args().collect::<Vec<_>>();
 	let owner = &args[1];
 	let repo = &args[2];
 
 	let repo_id = get_repo(&tx, owner, repo);
-	let mut stmt = tx.prepare("SELECT id, created, closed, merged FROM pulls WHERE repo_id = ?1").unwrap();
+	let mut stmt = tx
+		.prepare("SELECT id, created, closed, merged FROM pulls WHERE repo_id = ?1")
+		.unwrap();
 
 	let rows = stmt
 		.query_map(params![repo_id], |row| {

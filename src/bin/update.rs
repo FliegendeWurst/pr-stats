@@ -28,6 +28,9 @@ async fn real_main(args: &[String]) -> Result<(), Box<dyn Error>> {
 	let mut database = get_database();
 	let tx = database.transaction()?;
 
+	if args.len() < 2 {
+		return Err("usage: update <owner> <repo> [mergers <limit>]".into());
+	}
 	let owner = &args[0];
 	let repo = &args[1];
 
@@ -35,9 +38,16 @@ async fn real_main(args: &[String]) -> Result<(), Box<dyn Error>> {
 	let repo_id = get_repo(&tx, owner, repo);
 
 	if args.len() == 4 && args[2] == "mergers" {
-		fetch_mergers(gh, &tx, owner, repo, repo_id, args[3].parse().unwrap()).await?;
+		let limit = args[3]
+			.parse::<u64>()
+			.map_err(|_| format!("invalid mergers limit '{}': expected an unsigned integer", args[3]))?;
+		fetch_mergers(gh, &tx, owner, repo, repo_id, limit).await?;
 		tx.commit()?;
 		return Ok(());
+	}
+
+	if args.len() > 2 && !(args.len() == 4 && args[2] == "mergers") {
+		return Err("usage: update <owner> <repo> [mergers <limit>]".into());
 	}
 
 	// find last update

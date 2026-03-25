@@ -2,3 +2,5 @@
 /data
 /data_monthly
 /data_monthly_merged
+.direnv
+.env
